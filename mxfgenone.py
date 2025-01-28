@@ -21,7 +21,10 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
     # Ensure critical columns are numeric
     try:
         data['Estimated area, m2'] = pd.to_numeric(data['Estimated area, m2'], errors='coerce')
-        data[oversold_col] = pd.to_numeric(data[oversold_col], errors='coerce')
+        if oversold_col not in data.columns:
+            data[oversold_col] = 0  # Add a virtual column with default value if missing
+            st.warning(f"Column '{oversold_col}' is missing. Defaulting to 0 for all rows.")
+        data[oversold_col] = pd.to_numeric(data[oversold_col], errors='coerce').fillna(0)  # Fill NaN with 0
     except Exception as e:
         raise ValueError(f"Error converting columns to numeric: {e}")
 
@@ -36,7 +39,7 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
     st.dataframe(data[['Premises ID ', 'Estimated area, m2', oversold_col]].head())
 
     # Drop rows with NaN values in critical columns
-    data = data.dropna(subset=['Estimated area, m2', oversold_col])
+    data = data.dropna(subset=['Estimated area, m2'])
 
     # Debugging: Check data after dropping NaN
     if data.empty:
