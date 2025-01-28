@@ -1,7 +1,6 @@
 import pandas as pd
 import streamlit as st
 import math
-from streamlit_elements import mui, html
 
 # Helper functions translated from PHP
 
@@ -46,45 +45,41 @@ def calculate_oversold(properties_sold, total_properties):
         return 0
     return properties_sold / total_properties
 
-# Streamlit application
+# Streamlit application with step progress bar
+st.set_page_config(layout="centered")
 st.title("Dynamic Price Evaluation: Guided Workflow")
 
-# Step management
-steps = ["Upload Files", "Define Parameters", "Rank Views & Layouts", "Calculate Results"]
+# Progress bar style and setup
+step_labels = ["Upload Files", "Define Parameters", "Rank Views & Layouts", "Calculate & Review"]
 current_step = st.session_state.get("current_step", 0)
+st.session_state["step_status"] = st.session_state.get("step_status", [False] * len(step_labels))
 
-def set_step(step):
-    st.session_state.current_step = step
-    st.experimental_rerun()
-
-# Progress bar with steps
+# Function to render the progress bar
 def render_progress_bar():
-    for i, step in enumerate(steps):
-        color = "green" if i < current_step else ("blue" if i == current_step else "gray")
-        mui.Button(
-            step,
-            variant="contained",
-            color=color,
-            disabled=(i > current_step),
-            onClick=lambda i=i: set_step(i),
-        ).style(margin="0 5px")
+    progress_bar = "<div style='display: flex; gap: 10px;'>"
+    for idx, label in enumerate(step_labels):
+        color = "#4CAF50" if idx < current_step else ("blue" if idx == current_step else "gray")
+        check_icon = "✔️" if st.session_state["step_status"][idx] else ""
+        progress_bar += f"<div style='flex: 1; padding: 10px; background-color: {color}; border-radius: 5px; text-align: center;'>{label} {check_icon}</div>"
+    progress_bar += "</div>"
+    st.markdown(progress_bar, unsafe_allow_html=True)
 
-with st.sidebar:
-    st.markdown("### Progress")
-    render_progress_bar()
+render_progress_bar()
 
-# Steps logic
+# Step 1: Upload Files
 if current_step == 0:
     st.markdown("### Step 1: Upload Required Excel Files")
     income_plan_file = st.file_uploader("Upload Income Plan (Excel)", type=["xlsx", "xls"], key="income_plan")
     specification_file = st.file_uploader("Upload Specification (Excel)", type=["xlsx", "xls"], key="specification")
 
     if income_plan_file and specification_file:
-        st.success("Files uploaded successfully. Click Next to proceed.")
+        st.success("Files uploaded successfully.")
+        st.session_state["step_status"][0] = True
         if st.button("Next"):
-            set_step(1)
+            st.session_state.current_step = 1
 
-elif current_step == 1:
+# Step 2: Define Parameters
+if current_step == 1:
     st.markdown("### Step 2: Define User Parameters")
     base_price = st.number_input("Base Price (per m²)", min_value=0.0, step=0.1)
     spread = st.number_input("Spread for Area Factor", min_value=0.1, step=0.1)
@@ -92,44 +87,63 @@ elif current_step == 1:
     minimal_area = st.number_input("Minimal Area", min_value=0.1, step=0.1)
     log_base = st.number_input("Logarithmic Base", min_value=1.0, step=0.1)
     step = st.number_input("Step Value for Score Calculation", min_value=0.1, step=0.1)
+    incline = st.number_input("Incline for View Factor", min_value=0.1, step=0.1)
+    shift = st.number_input("Shift for View Factor", min_value=0, step=1)
+    terrace_coefficient = st.number_input("Coefficient for Terrace Factor", min_value=0.0, step=0.1)
+    levels_coefficient = st.number_input("Coefficient for Levels Factor", min_value=0.0, step=0.1)
+    maxify_adjustment = st.number_input("Adjustment for Maxify Factor", min_value=0.0, step=0.1)
 
     if st.button("Next"):
-        set_step(2)
+        st.session_state["step_status"][1] = True
+        st.session_state.current_step = 2
 
-elif current_step == 2:
+# Step 3: Rank Views & Layouts
+if current_step == 2:
     st.markdown("### Step 3: Rank Views and Layouts")
+    try:
+        specification_data = pd.read_excel(specification_file, engine='openpyxl')
+        if 'View from window' not in specification_data.columns:
+            specification_data['View from window'] = 'Default View'
+        if 'Layout type' not in specification_data.columns:
+            specification_data['Layout type'] = 'Default Layout'
 
-    specification_data = pd.read_excel(specification_file, engine='openpyxl')
+        unique_views = specification_data['View from window'].unique()
+        unique_layouts = specification_data['Layout type'].unique()
 
-    if 'View from window' not in specification_data.columns:
-        specification_data['View from window'] = 'Default View'
-        st.warning("Column 'View from window' is missing. A default value has been assigned.")
+        view_ranking = {view: st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1) for view in unique_views}
+        layout_ranking = {layout: st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1) for layout in unique_layouts}
 
-    if 'Layout type' not in specification_data.columns:
-        specification_data['Layout type'] = 'Default Layout'
-        st.warning("Column 'Layout type' is missing. A default value has been assigned.")
+        if st.button("Next"):
+            st.session_state["step_status"][2] = True
+            st.session_state.current_step = 3
+    except Exception as e:
+        st.error(f"Error processing specification file: {e}")
 
-    unique_views = specification_data['View from window'].unique()
-    unique_layouts = specification_data['Layout type'].unique()
-
-    view_ranking = {}
-    layout_ranking = {}
-
-    st.write("Assign a rank from 1 to 10 for each unique view and layout.")
-    for view in unique_views:
-        view_ranking[view] = st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1)
-
-    for layout in unique_layouts:
-        layout_ranking[layout] = st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1)
-
-    if st.button("Next"):
-        set_step(3)
-
-elif current_step == 3:
-    st.markdown("### Step 4: Calculate Results")
+# Step 4: Calculate & Review
+if current_step == 3:
+    st.markdown("### Step 4: Calculate and Review")
     if st.button("Calculate"):
-        # Here you can implement calculations
-        st.success("Calculations completed successfully!")
+        try:
+            # Perform calculations
+            specification_data['Oversold'] = specification_data.apply(
+                lambda row: calculate_oversold(row.get('Properties Sold', 0), row.get('Total Properties', 1)), axis=1
+            )
 
-    if st.button("Restart"):
-        set_step(0)
+            specification_data['Dynamic Price (per m²)'] = base_price
+            specification_data['Total Price'] = specification_data['Dynamic Price (per m²)'] * specification_data['Estimated area, m2']
+            specification_data['Discount'] = specification_data['Total Price'] * 0.1
+
+            st.session_state["step_status"][3] = True
+            st.success("Calculation completed.")
+            st.write("### Calculation Results")
+            st.dataframe(specification_data)
+
+            st.markdown("### Download Results")
+            st.download_button(
+                label="Download Updated Data",
+                data=specification_data.to_csv(index=False),
+                file_name="updated_specification_data.csv",
+                mime="text/csv"
+            )
+        except Exception as e:
+            st.error(f"An error occurred during calculations: {e}")
