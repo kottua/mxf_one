@@ -40,6 +40,11 @@ def get_levels_factor_value(levels_qty, coefficient):
 def get_maxify_factor_value(base_factor, max_factor, adjustment):
     return base_factor + (max_factor * adjustment)
 
+def calculate_oversold(properties_sold, total_properties):
+    if total_properties == 0:
+        return 0
+    return properties_sold / total_properties
+
 # Streamlit application
 st.title("Dynamic Price Evaluation: Guided Workflow")
 
@@ -64,6 +69,10 @@ terrace_coefficient = st.number_input("Coefficient for Terrace Factor", min_valu
 levels_coefficient = st.number_input("Coefficient for Levels Factor", min_value=0.0, step=0.1)
 maxify_adjustment = st.number_input("Adjustment for Maxify Factor", min_value=0.0, step=0.1)
 
+# Initialize variables for dynamic inputs
+view_ranking = {}
+layout_ranking = {}
+
 # Validate uploaded files
 if income_plan_file is not None:
     try:
@@ -80,6 +89,20 @@ if specification_file is not None:
         st.success("Specification file loaded successfully.")
         st.write("### Specification Data Preview")
         st.dataframe(specification_data)
+
+        # Extract unique values for views and layouts
+        unique_views = specification_data['View'].unique()
+        unique_layouts = specification_data['Layout'].unique()
+
+        st.markdown("### Step 3: Rank Views and Layouts")
+        st.write("Assign a rank from 1 to 10 for each unique view and layout.")
+
+        for view in unique_views:
+            view_ranking[view] = st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1)
+
+        for layout in unique_layouts:
+            layout_ranking[layout] = st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1)
+
     except Exception as e:
         st.error(f"Error reading Specification file: {e}")
 
@@ -87,15 +110,20 @@ if specification_file is not None:
 if specification_file is not None:
     if st.button("Calculate Dynamic Prices"):
         try:
+            # Calculate oversold ratio
+            specification_data['Oversold'] = specification_data.apply(
+                lambda row: calculate_oversold(row.get('Properties Sold', 0), row.get('Total Properties', 1)), axis=1
+            )
+
             # Apply factors to adjust the base price per m²
             specification_data['Area Factor'] = specification_data.apply(
                 lambda row: get_area_factor_linear(spread, row['Estimated area, m2'], offset, minimal_area), axis=1
             )
             specification_data['View Factor'] = specification_data.apply(
-                lambda row: get_view_factor_value(row.get('View', 0), 10, incline, shift), axis=1
+                lambda row: view_ranking.get(row['View'], 5), axis=1
             )
             specification_data['Layout Factor'] = specification_data.apply(
-                lambda row: get_layout_factor_value(row.get('Layout', 0), 10, incline, shift), axis=1
+                lambda row: layout_ranking.get(row['Layout'], 5), axis=1
             )
             specification_data['Terrace Factor'] = specification_data.apply(
                 lambda row: get_terrace_factor_value(row.get('Has Terrace', False), terrace_coefficient), axis=1
@@ -125,7 +153,7 @@ if specification_file is not None:
             st.write("### Updated Specification Data with Calculations")
             st.dataframe(specification_data)
 
-            st.markdown("### Step 3: Download Results")
+            st.markdown("### Step 4: Download Results")
             st.download_button(
                 label="Download Updated Data",
                 data=specification_data.to_csv(index=False),
