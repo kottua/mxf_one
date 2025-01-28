@@ -67,10 +67,10 @@ if income_plan_file and specification_file:
     properties_sold = specification_data['Properties Sold'].sum() if 'Properties Sold' in specification_data.columns else 0
     oversold_rate = calculate_oversold(properties_sold, total_properties)
 
-    planned_price_start = income_plan_data['Planned Price Start'].iloc[0] if 'Planned Price Start' in income_plan_data.columns else None
-    planned_price_end = income_plan_data['Planned Price End'].iloc[-1] if 'Planned Price End' in income_plan_data.columns else None
+    planned_price_start = income_plan_data['Planned Price Start'].iloc[0] if 'Planned Price Start' in income_plan_data.columns else "Not Available"
+    planned_price_end = income_plan_data['Planned Price End'].iloc[-1] if 'Planned Price End' in income_plan_data.columns else "Not Available"
 
-    avg_planned_price = income_plan_data['Planned Price'].mean() if 'Planned Price' in income_plan_data.columns else None
+    avg_planned_price = income_plan_data['Planned Price'].mean() if 'Planned Price' in income_plan_data.columns else "Not Available"
 
     # Display statistics
     st.write(f"**Total Properties:** {total_properties}")
