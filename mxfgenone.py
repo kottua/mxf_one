@@ -91,17 +91,17 @@ if specification_file is not None:
         st.dataframe(specification_data)
 
         # Ensure necessary columns exist
-        if 'View' not in specification_data.columns:
-            specification_data['View'] = 'Default View'
-            st.warning("Column 'View' is missing. A default value has been assigned.")
+        if 'View from window' not in specification_data.columns:
+            specification_data['View from window'] = 'Default View'
+            st.warning("Column 'View from window' is missing. A default value has been assigned.")
 
-        if 'Layout' not in specification_data.columns:
-            specification_data['Layout'] = 'Default Layout'
-            st.warning("Column 'Layout' is missing. A default value has been assigned.")
+        if 'Layout type' not in specification_data.columns:
+            specification_data['Layout type'] = 'Default Layout'
+            st.warning("Column 'Layout type' is missing. A default value has been assigned.")
 
         # Extract unique values for views and layouts
-        unique_views = specification_data['View'].unique()
-        unique_layouts = specification_data['Layout'].unique()
+        unique_views = specification_data['View from window'].unique()
+        unique_layouts = specification_data['Layout type'].unique()
 
         st.markdown("### Step 3: Rank Views and Layouts")
         st.write("Assign a rank from 1 to 10 for each unique view and layout.")
@@ -129,10 +129,10 @@ if specification_file is not None:
                 lambda row: get_area_factor_linear(spread, row['Estimated area, m2'], offset, minimal_area), axis=1
             )
             specification_data['View Factor'] = specification_data.apply(
-                lambda row: view_ranking.get(row['View'], 5), axis=1
+                lambda row: view_ranking.get(row['View from window'], 5), axis=1
             )
             specification_data['Layout Factor'] = specification_data.apply(
-                lambda row: layout_ranking.get(row['Layout'], 5), axis=1
+                lambda row: layout_ranking.get(row['Layout type'], 5), axis=1
             )
             specification_data['Terrace Factor'] = specification_data.apply(
                 lambda row: get_terrace_factor_value(row.get('Has Terrace', False), terrace_coefficient), axis=1
