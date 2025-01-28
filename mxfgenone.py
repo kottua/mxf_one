@@ -28,8 +28,8 @@ def get_area_factor_value(area_factor, spread):
 def get_view_factor_value(current_view_value, max_view_value, incline, shift):
     return ((current_view_value / max_view_value) * incline) + shift
 
-def get_layout_factor_value(current_layout_value, max_layout_value, incline, shift):
-    return ((current_layout_value / max_layout_value) * incline) + shift
+def get_layout_factor_value(current_layout_value, max_view_value, incline, shift):
+    return ((current_layout_value / max_view_value) * incline) + shift
 
 def get_terrace_factor_value(property_has_terrace, coefficient):
     return coefficient if property_has_terrace else 0
@@ -72,7 +72,12 @@ if current_step == 0:
     income_plan_file = st.file_uploader("Upload Income Plan (Excel)", type=["xlsx", "xls"], key="income_plan")
     specification_file = st.file_uploader("Upload Specification (Excel)", type=["xlsx", "xls"], key="specification")
 
-    if income_plan_file and specification_file:
+    if income_plan_file:
+        st.session_state["income_plan_file"] = income_plan_file
+    if specification_file:
+        st.session_state["specification_file"] = specification_file
+
+    if "income_plan_file" in st.session_state and "specification_file" in st.session_state:
         st.success("Files uploaded successfully.")
         st.session_state["step_status"][0] = True
         if st.button("Next"):
@@ -101,49 +106,59 @@ if current_step == 1:
 if current_step == 2:
     st.markdown("### Step 3: Rank Views and Layouts")
     try:
-        specification_data = pd.read_excel(specification_file, engine='openpyxl')
-        if 'View from window' not in specification_data.columns:
-            specification_data['View from window'] = 'Default View'
-        if 'Layout type' not in specification_data.columns:
-            specification_data['Layout type'] = 'Default Layout'
+        specification_file = st.session_state.get("specification_file")
+        if not specification_file:
+            st.error("Specification file is missing. Please return to Step 1 and upload the file.")
+        else:
+            specification_data = pd.read_excel(specification_file, engine='openpyxl')
+            if 'View from window' not in specification_data.columns:
+                specification_data['View from window'] = 'Default View'
+            if 'Layout type' not in specification_data.columns:
+                specification_data['Layout type'] = 'Default Layout'
 
-        unique_views = specification_data['View from window'].unique()
-        unique_layouts = specification_data['Layout type'].unique()
+            unique_views = specification_data['View from window'].unique()
+            unique_layouts = specification_data['Layout type'].unique()
 
-        view_ranking = {view: st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1) for view in unique_views}
-        layout_ranking = {layout: st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1) for layout in unique_layouts}
+            view_ranking = {view: st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1) for view in unique_views}
+            layout_ranking = {layout: st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1) for layout in unique_layouts}
 
-        if st.button("Next"):
-            st.session_state["step_status"][2] = True
-            st.session_state.current_step = 3
+            if st.button("Next"):
+                st.session_state["step_status"][2] = True
+                st.session_state.current_step = 3
     except Exception as e:
         st.error(f"Error processing specification file: {e}")
 
 # Step 4: Calculate & Review
 if current_step == 3:
     st.markdown("### Step 4: Calculate and Review")
-    if st.button("Calculate"):
-        try:
-            # Perform calculations
-            specification_data['Oversold'] = specification_data.apply(
-                lambda row: calculate_oversold(row.get('Properties Sold', 0), row.get('Total Properties', 1)), axis=1
-            )
+    try:
+        specification_file = st.session_state.get("specification_file")
+        if not specification_file:
+            st.error("Specification file is missing. Please return to Step 1 and upload the file.")
+        else:
+            specification_data = pd.read_excel(specification_file, engine='openpyxl')
 
-            specification_data['Dynamic Price (per m²)'] = base_price
-            specification_data['Total Price'] = specification_data['Dynamic Price (per m²)'] * specification_data['Estimated area, m2']
-            specification_data['Discount'] = specification_data['Total Price'] * 0.1
+            if st.button("Calculate"):
+                # Perform calculations
+                specification_data['Oversold'] = specification_data.apply(
+                    lambda row: calculate_oversold(row.get('Properties Sold', 0), row.get('Total Properties', 1)), axis=1
+                )
 
-            st.session_state["step_status"][3] = True
-            st.success("Calculation completed.")
-            st.write("### Calculation Results")
-            st.dataframe(specification_data)
+                specification_data['Dynamic Price (per m²)'] = base_price
+                specification_data['Total Price'] = specification_data['Dynamic Price (per m²)'] * specification_data['Estimated area, m2']
+                specification_data['Discount'] = specification_data['Total Price'] * 0.1
 
-            st.markdown("### Download Results")
-            st.download_button(
-                label="Download Updated Data",
-                data=specification_data.to_csv(index=False),
-                file_name="updated_specification_data.csv",
-                mime="text/csv"
-            )
-        except Exception as e:
-            st.error(f"An error occurred during calculations: {e}")
+                st.session_state["step_status"][3] = True
+                st.success("Calculation completed.")
+                st.write("### Calculation Results")
+                st.dataframe(specification_data)
+
+                st.markdown("### Download Results")
+                st.download_button(
+                    label="Download Updated Data",
+                    data=specification_data.to_csv(index=False),
+                    file_name="updated_specification_data.csv",
+                    mime="text/csv"
+                )
+    except Exception as e:
+        st.error(f"An error occurred during calculations: {e}")
