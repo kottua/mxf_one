@@ -18,6 +18,33 @@ def calculate_oversold(sold_area, total_area):
         return 0
     return sold_area / total_area
 
+def get_area_factor_linear(spread, estimated_area, offset, minimal_area):
+    return abs(((offset - estimated_area) / spread) / ((offset - minimal_area) / spread))
+
+def get_area_factor_logarithmic(log_base, estimated_area, offset, minimal_area):
+    return (math.log(estimated_area, log_base) + offset) / (math.log(minimal_area, log_base) + offset)
+
+def get_area_factor_power(filling, estimated_area, minimal_area):
+    return (2 ** (filling * estimated_area)) / (2 ** (filling * minimal_area))
+
+def get_area_factor_value(area_factor, spread):
+    return area_factor + ((1 - area_factor) / spread)
+
+def get_view_factor_value(current_view_value, max_view_value, incline, shift):
+    return ((current_view_value / max_view_value) * incline) + shift
+
+def get_layout_factor_value(current_layout_value, max_layout_value, incline, shift):
+    return ((current_layout_value / max_layout_value) * incline) + shift
+
+def get_terrace_factor_value(property_has_terrace, coefficient):
+    return coefficient if property_has_terrace else 0
+
+def get_levels_factor_value(levels_qty, coefficient):
+    return levels_qty * coefficient
+
+def get_maxify_factor_value(base_factor, max_factor, adjustment):
+    return base_factor + (max_factor * adjustment)
+
 # Streamlit application
 st.set_page_config(layout="centered")
 st.title("Dynamic Price Evaluation: Guided Workflow")
@@ -30,10 +57,19 @@ specification_file = st.file_uploader("Upload Specification (Excel)", type=["xls
 if income_plan_file and specification_file:
     st.success("Files uploaded successfully.")
 
-    # Intermediate Step: House Summary Statistics
-    st.markdown("### Intermediate Step: House Summary Statistics")
+    # Preview uploaded data
+    st.markdown("### Preview Uploaded Data")
     specification_data = pd.read_excel(specification_file, engine='openpyxl')
     income_plan_data = pd.read_excel(income_plan_file, engine='openpyxl')
+
+    st.write("**Specification Data Preview:**")
+    st.dataframe(specification_data.head())
+
+    st.write("**Income Plan Data Preview:**")
+    st.dataframe(income_plan_data.head())
+
+    # Intermediate Step: House Summary Statistics
+    st.markdown("### Intermediate Step: House Summary Statistics")
 
     # Calculate statistics
     total_area = specification_data['Estimated area, m2'].sum() if 'Estimated area, m2' in specification_data.columns else 0
