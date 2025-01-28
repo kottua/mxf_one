@@ -25,12 +25,22 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
     except Exception as e:
         raise ValueError(f"Error converting columns to numeric: {e}")
 
+    # Debugging: Check data before dropping NaN
+    st.write("### Data before dropping NaN:")
+    st.dataframe(data[['Premises ID ', 'Estimated area, m2', oversold_col]].head())
+
     # Drop rows with NaN values in critical columns
     data = data.dropna(subset=['Estimated area, m2', oversold_col])
 
-    # Debugging: Ensure key columns are populated
+    # Debugging: Check data after dropping NaN
     if data.empty:
+        st.warning("No valid rows remain after dropping rows with NaN values.")
+        st.write("### Data after dropping NaN:")
+        st.dataframe(data)
         raise ValueError("No valid rows available after dropping NaN values in critical columns.")
+
+    st.write("### Data after dropping NaN:")
+    st.dataframe(data[['Premises ID ', 'Estimated area, m2', oversold_col]].head())
 
     data['Score'] = data.apply(lambda row: get_score(base_price, row[oversold_col], step), axis=1)
     data['Dynamic Price'] = data['Score'] * data['Estimated area, m2']
