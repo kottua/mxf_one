@@ -30,7 +30,13 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
 
     data['Score'] = data.apply(lambda row: get_score(base_price, row[oversold_col], step), axis=1)
     data['Dynamic Price'] = data['Score'] * data['Estimated area, m2']
-    return data
+
+    # Calculate Discount (example logic: 10% of Dynamic Price)
+    data['Discount'] = data['Dynamic Price'] * 0.1
+
+    # Keep only relevant columns
+    result = data[['Premises ID ', 'Dynamic Price', 'Discount']]
+    return result
 
 # Expected columns for validation
 EXPECTED_INCOME_PLAN_COLUMNS = ['Property type', 'Year', 'Month', 'Area', 'Sales amount']
