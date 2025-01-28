@@ -49,7 +49,7 @@ specification_file = st.file_uploader("Upload Specification (Excel)", type=["xls
 
 # Additional user-defined parameters
 st.markdown("### Step 2: Define User Parameters")
-base_price = st.number_input("Base Price", min_value=0.0, step=0.1)
+base_price = st.number_input("Base Price (per m²)", min_value=0.0, step=0.1)
 spread = st.number_input("Spread for Area Factor", min_value=0.1, step=0.1)
 offset = st.number_input("Offset Value", min_value=0, step=1)
 minimal_area = st.number_input("Minimal Area", min_value=0.1, step=0.1)
@@ -83,6 +83,7 @@ if specification_file is not None:
 if specification_file is not None:
     if st.button("Calculate Dynamic Prices"):
         try:
+            # Apply factors to adjust the base price per m²
             specification_data['Area Factor'] = specification_data.apply(
                 lambda row: get_area_factor_linear(spread, row['Estimated area, m2'], offset, minimal_area), axis=1
             )
@@ -98,15 +99,23 @@ if specification_file is not None:
             specification_data['Levels Factor'] = specification_data.apply(
                 lambda row: get_levels_factor_value(row.get('Levels', 1), levels_coefficient), axis=1
             )
-            specification_data['Score'] = specification_data.apply(
-                lambda row: get_score(base_price, row.get('Oversold', 0), step), axis=1
+
+            # Combine all factors into a final price adjustment
+            specification_data['Final Factor'] = (
+                specification_data['Area Factor'] +
+                specification_data['View Factor'] +
+                specification_data['Layout Factor'] +
+                specification_data['Terrace Factor'] +
+                specification_data['Levels Factor']
             )
-            specification_data['Dynamic Price'] = specification_data['Score'] * specification_data['Estimated area, m2']
-            specification_data['Discount'] = specification_data['Dynamic Price'] * 0.1
+
+            specification_data['Dynamic Price (per m²)'] = base_price * specification_data['Final Factor']
+            specification_data['Total Price'] = specification_data['Dynamic Price (per m²)'] * specification_data['Estimated area, m2']
+            specification_data['Discount'] = specification_data['Total Price'] * 0.1
 
             st.success("Dynamic Prices Calculated Successfully.")
             st.write("### Updated Specification Data with Calculations")
-            st.dataframe(specification_data[['Premises ID ', 'Dynamic Price', 'Discount']])
+            st.dataframe(specification_data[['Premises ID ', 'Dynamic Price (per m²)', 'Total Price', 'Discount']])
 
             st.markdown("### Step 3: Download Results")
             st.download_button(
