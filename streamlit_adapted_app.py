@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-from src.data_utils import *
 from src.max_bcg import *
 from src.max_dp import *
 from src.max_calculate_plan import *
