@@ -13,68 +13,17 @@ def get_floor_factor_logarithmic(current_floor, max_floor, offset, log_base):
 def get_score(base, oversold, step):
     return base + (base * ((oversold + 0.01) ** (1 / step)))
 
-def calculate_dynamic_price(data, base_price, oversold_col, step):
-    # Ensure 'Estimated area, m2' is present
-    if 'Estimated area, m2' not in data.columns:
-        raise KeyError("The column 'Estimated area, m2' is missing in the specification file.")
+def get_area_factor_linear(spread, estimated_area, offset, minimal_area):
+    return abs(((offset - estimated_area) / spread) / ((offset - minimal_area) / spread))
 
-    # Ensure critical columns are numeric
-    try:
-        data['Estimated area, m2'] = pd.to_numeric(data['Estimated area, m2'], errors='coerce')
-        if oversold_col not in data.columns:
-            data[oversold_col] = 0  # Add a virtual column with default value if missing
-            st.warning(f"Column '{oversold_col}' is missing. Defaulting to 0 for all rows.")
-        data[oversold_col] = pd.to_numeric(data[oversold_col], errors='coerce').fillna(0)  # Fill NaN with 0
-    except Exception as e:
-        raise ValueError(f"Error converting columns to numeric: {e}")
+def get_area_factor_logarithmic(log_base, estimated_area, offset, minimal_area):
+    return (math.log(estimated_area, log_base) + offset) / (math.log(minimal_area, log_base) + offset)
 
-    # Debugging: Check the unique values in critical columns
-    st.write("### Unique values in 'Estimated area, m2':")
-    st.write(data['Estimated area, m2'].unique())
-    st.write("### Unique values in the selected oversold column:")
-    st.write(data[oversold_col].unique())
+def get_area_factor_power(filling, estimated_area, minimal_area):
+    return (2 ** (filling * estimated_area)) / (2 ** (filling * minimal_area))
 
-    # Debugging: Check data before dropping NaN
-    st.write("### Data before dropping NaN:")
-    st.dataframe(data[['Premises ID ', 'Estimated area, m2', oversold_col]].head())
-
-    # Drop rows with NaN values in critical columns
-    data = data.dropna(subset=['Estimated area, m2'])
-
-    # Debugging: Check data after dropping NaN
-    if data.empty:
-        st.warning("No valid rows remain after dropping rows with NaN values.")
-        st.write("### Data after dropping NaN:")
-        st.dataframe(data)
-        raise ValueError("No valid rows available after dropping NaN values in critical columns.")
-
-    st.write("### Data after dropping NaN:")
-    st.dataframe(data[['Premises ID ', 'Estimated area, m2', oversold_col]].head())
-
-    data['Score'] = data.apply(lambda row: get_score(base_price, row[oversold_col], step), axis=1)
-    data['Dynamic Price'] = data['Score'] * data['Estimated area, m2']
-
-    # Calculate Discount (example logic: 10% of Dynamic Price)
-    data['Discount'] = data['Dynamic Price'] * 0.1
-
-    # Ensure key columns are populated
-    if data[['Premises ID ', 'Dynamic Price', 'Discount']].isnull().any().any():
-        raise ValueError("Some key columns (Premises ID, Dynamic Price, or Discount) have missing values.")
-
-    # Keep only relevant columns
-    result = data[['Premises ID ', 'Dynamic Price', 'Discount']]
-    return result
-
-# Expected columns for validation
-EXPECTED_INCOME_PLAN_COLUMNS = ['Property type', 'Year', 'Month', 'Area', 'Sales amount']
-EXPECTED_SPECIFICATION_COLUMNS = [
-    'Property type', 'Premises ID ', 'Number of unit', 'Number', 'Entrance', 'Floor',
-    'Layout type', 'Full price', 'Total area, m2', 'Estimated area, m2',
-    'Price per meter', 'Number of rooms', 'Living area, m2', 'Kitchen area, m2',
-    'View from window', 'Number of levels', 'Number of loggias', 'Number of balconies',
-    'Number of bathrooms with toilets', 'Number of separate bathrooms',
-    'Number of terraces', 'Studio', 'Status', 'Sales amount'
-]
+def get_area_factor_value(area_factor, spread):
+    return area_factor + ((1 - area_factor) / spread)
 
 # Streamlit application
 st.title("Dynamic Price Evaluation: Guided Workflow")
@@ -86,59 +35,57 @@ income_plan_file = st.file_uploader("Upload Income Plan (Excel)", type=["xlsx", 
 # Upload specification file
 specification_file = st.file_uploader("Upload Specification (Excel)", type=["xlsx", "xls"], key="specification")
 
-# Validate income plan file
+# Additional user-defined parameters
+st.markdown("### Step 2: Define User Parameters")
+base_price = st.number_input("Base Price", min_value=0.0, step=0.1)
+spread = st.number_input("Spread for Area Factor", min_value=0.1, step=0.1)
+offset = st.number_input("Offset Value", min_value=0, step=1)
+minimal_area = st.number_input("Minimal Area", min_value=0.1, step=0.1)
+log_base = st.number_input("Logarithmic Base", min_value=1.0, step=0.1)
+step = st.number_input("Step Value for Score Calculation", min_value=0.1, step=0.1)
+
+# Validate uploaded files
 if income_plan_file is not None:
     try:
         income_plan_data = pd.read_excel(income_plan_file, engine='openpyxl')
-        if list(income_plan_data.columns) == EXPECTED_INCOME_PLAN_COLUMNS:
-            st.success("Income Plan file structure is valid.")
-            st.write("### Uploaded Income Plan Data")
-            st.dataframe(income_plan_data)
-        else:
-            st.error(f"Invalid Income Plan file structure. Expected columns: {EXPECTED_INCOME_PLAN_COLUMNS}")
+        st.success("Income Plan file loaded successfully.")
+        st.write("### Income Plan Data Preview")
+        st.dataframe(income_plan_data)
     except Exception as e:
         st.error(f"Error reading Income Plan file: {e}")
-else:
-    st.warning("Please upload the Income Plan file.")
 
-# Validate specification file
 if specification_file is not None:
     try:
         specification_data = pd.read_excel(specification_file, engine='openpyxl')
-        if list(specification_data.columns) == EXPECTED_SPECIFICATION_COLUMNS:
-            st.success("Specification file structure is valid.")
-            st.write("### Uploaded Specification Data")
-            st.dataframe(specification_data)
-        else:
-            st.error(f"Invalid Specification file structure. Expected columns: {EXPECTED_SPECIFICATION_COLUMNS}")
+        st.success("Specification file loaded successfully.")
+        st.write("### Specification Data Preview")
+        st.dataframe(specification_data)
     except Exception as e:
         st.error(f"Error reading Specification file: {e}")
-else:
-    st.warning("Please upload the Specification file.")
 
-if income_plan_file is not None and specification_file is not None:
-    st.markdown("### Step 2: Define Calculation Parameters")
-    base_price = st.number_input("Base Price", min_value=0.0, step=0.1)
-    oversold_col = st.selectbox("Select the Oversold Column from Specification", specification_data.columns)
-    step = st.number_input("Step Value", min_value=0.1, step=0.1)
-
+# Perform calculations
+if specification_file is not None:
     if st.button("Calculate Dynamic Prices"):
         try:
-            updated_data = calculate_dynamic_price(specification_data, base_price, oversold_col, step)
-            st.success("Dynamic Prices Calculated Successfully")
-            st.write("### Updated Specification Data with Dynamic Prices")
-            st.dataframe(updated_data)
+            specification_data['Area Factor'] = specification_data.apply(
+                lambda row: get_area_factor_linear(spread, row['Estimated area, m2'], offset, minimal_area), axis=1
+            )
+            specification_data['Score'] = specification_data.apply(
+                lambda row: get_score(base_price, row.get('Oversold', 0), step), axis=1
+            )
+            specification_data['Dynamic Price'] = specification_data['Score'] * specification_data['Estimated area, m2']
+            specification_data['Discount'] = specification_data['Dynamic Price'] * 0.1
 
-            st.markdown("### Step 3: Download Updated Data")
+            st.success("Dynamic Prices Calculated Successfully.")
+            st.write("### Updated Specification Data with Calculations")
+            st.dataframe(specification_data[['Premises ID ', 'Dynamic Price', 'Discount']])
+
+            st.markdown("### Step 3: Download Results")
             st.download_button(
-                label="Download Updated Specification Data",
-                data=updated_data.to_csv(index=False),
+                label="Download Updated Data",
+                data=specification_data.to_csv(index=False),
                 file_name="updated_specification_data.csv",
                 mime="text/csv"
             )
-        except KeyError as e:
-            st.error(f"Error: {e}")
-        except ValueError as e:
-            st.error(f"Data validation error: {e}")
         except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
+            st.error(f"An error occurred during calculations: {e}")
