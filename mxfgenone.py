@@ -57,6 +57,29 @@ specification_file = st.file_uploader("Upload Specification (Excel)", type=["xls
 if income_plan_file and specification_file:
     st.success("Files uploaded successfully.")
 
+    # Intermediate Step: House Summary Statistics
+    st.markdown("### Intermediate Step: House Summary Statistics")
+    specification_data = pd.read_excel(specification_file, engine='openpyxl')
+    income_plan_data = pd.read_excel(income_plan_file, engine='openpyxl')
+
+    # Calculate statistics
+    total_properties = len(specification_data)
+    properties_sold = specification_data['Properties Sold'].sum() if 'Properties Sold' in specification_data.columns else 0
+    oversold_rate = calculate_oversold(properties_sold, total_properties)
+
+    planned_price_start = income_plan_data['Planned Price Start'].iloc[0] if 'Planned Price Start' in income_plan_data.columns else None
+    planned_price_end = income_plan_data['Planned Price End'].iloc[-1] if 'Planned Price End' in income_plan_data.columns else None
+
+    avg_planned_price = income_plan_data['Planned Price'].mean() if 'Planned Price' in income_plan_data.columns else None
+
+    # Display statistics
+    st.write(f"**Total Properties:** {total_properties}")
+    st.write(f"**Properties Sold:** {properties_sold}")
+    st.write(f"**Oversold Rate:** {oversold_rate:.2%}")
+    st.write(f"**Planned Price Start:** {planned_price_start}")
+    st.write(f"**Planned Price End:** {planned_price_end}")
+    st.write(f"**Average Planned Price:** {avg_planned_price}")
+
     # Step 2: Define Parameters
     st.markdown("### Step 2: Define User Parameters")
     base_price = st.number_input("Base Price (per m²)", min_value=0.0, step=0.1)
@@ -73,7 +96,6 @@ if income_plan_file and specification_file:
 
     # Step 3: Rank Views & Layouts
     st.markdown("### Step 3: Rank Views and Layouts")
-    specification_data = pd.read_excel(specification_file, engine='openpyxl')
     if 'View from window' not in specification_data.columns:
         specification_data['View from window'] = 'Default View'
         st.warning("Column 'View from window' is missing. A default value has been assigned.")
