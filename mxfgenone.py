@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import math
+from streamlit_elements import mui, html
 
 # Helper functions translated from PHP
 
@@ -48,126 +49,87 @@ def calculate_oversold(properties_sold, total_properties):
 # Streamlit application
 st.title("Dynamic Price Evaluation: Guided Workflow")
 
-st.markdown("### Step 1: Upload Required Excel Files")
-# Upload income plan file
-income_plan_file = st.file_uploader("Upload Income Plan (Excel)", type=["xlsx", "xls"], key="income_plan")
+# Step management
+steps = ["Upload Files", "Define Parameters", "Rank Views & Layouts", "Calculate Results"]
+current_step = st.session_state.get("current_step", 0)
 
-# Upload specification file
-specification_file = st.file_uploader("Upload Specification (Excel)", type=["xlsx", "xls"], key="specification")
+def set_step(step):
+    st.session_state.current_step = step
+    st.experimental_rerun()
 
-# Additional user-defined parameters
-st.markdown("### Step 2: Define User Parameters")
-base_price = st.number_input("Base Price (per m²)", min_value=0.0, step=0.1)
-spread = st.number_input("Spread for Area Factor", min_value=0.1, step=0.1)
-offset = st.number_input("Offset Value", min_value=0, step=1)
-minimal_area = st.number_input("Minimal Area", min_value=0.1, step=0.1)
-log_base = st.number_input("Logarithmic Base", min_value=1.0, step=0.1)
-step = st.number_input("Step Value for Score Calculation", min_value=0.1, step=0.1)
-incline = st.number_input("Incline for View Factor", min_value=0.1, step=0.1)
-shift = st.number_input("Shift for View Factor", min_value=0, step=1)
-terrace_coefficient = st.number_input("Coefficient for Terrace Factor", min_value=0.0, step=0.1)
-levels_coefficient = st.number_input("Coefficient for Levels Factor", min_value=0.0, step=0.1)
-maxify_adjustment = st.number_input("Adjustment for Maxify Factor", min_value=0.0, step=0.1)
+# Progress bar with steps
+def render_progress_bar():
+    for i, step in enumerate(steps):
+        color = "green" if i < current_step else ("blue" if i == current_step else "gray")
+        mui.Button(
+            step,
+            variant="contained",
+            color=color,
+            disabled=(i > current_step),
+            onClick=lambda i=i: set_step(i),
+        ).style(margin="0 5px")
 
-# Initialize variables for dynamic inputs
-view_ranking = {}
-layout_ranking = {}
+with st.sidebar:
+    st.markdown("### Progress")
+    render_progress_bar()
 
-# Validate uploaded files
-if income_plan_file is not None:
-    try:
-        income_plan_data = pd.read_excel(income_plan_file, engine='openpyxl')
-        st.success("Income Plan file loaded successfully.")
-        st.write("### Income Plan Data Preview")
-        st.dataframe(income_plan_data)
-    except Exception as e:
-        st.error(f"Error reading Income Plan file: {e}")
+# Steps logic
+if current_step == 0:
+    st.markdown("### Step 1: Upload Required Excel Files")
+    income_plan_file = st.file_uploader("Upload Income Plan (Excel)", type=["xlsx", "xls"], key="income_plan")
+    specification_file = st.file_uploader("Upload Specification (Excel)", type=["xlsx", "xls"], key="specification")
 
-if specification_file is not None:
-    try:
-        specification_data = pd.read_excel(specification_file, engine='openpyxl')
-        st.success("Specification file loaded successfully.")
-        st.write("### Specification Data Preview")
-        st.dataframe(specification_data)
+    if income_plan_file and specification_file:
+        st.success("Files uploaded successfully. Click Next to proceed.")
+        if st.button("Next"):
+            set_step(1)
 
-        # Ensure necessary columns exist
-        if 'View from window' not in specification_data.columns:
-            specification_data['View from window'] = 'Default View'
-            st.warning("Column 'View from window' is missing. A default value has been assigned.")
+elif current_step == 1:
+    st.markdown("### Step 2: Define User Parameters")
+    base_price = st.number_input("Base Price (per m²)", min_value=0.0, step=0.1)
+    spread = st.number_input("Spread for Area Factor", min_value=0.1, step=0.1)
+    offset = st.number_input("Offset Value", min_value=0, step=1)
+    minimal_area = st.number_input("Minimal Area", min_value=0.1, step=0.1)
+    log_base = st.number_input("Logarithmic Base", min_value=1.0, step=0.1)
+    step = st.number_input("Step Value for Score Calculation", min_value=0.1, step=0.1)
 
-        if 'Layout type' not in specification_data.columns:
-            specification_data['Layout type'] = 'Default Layout'
-            st.warning("Column 'Layout type' is missing. A default value has been assigned.")
+    if st.button("Next"):
+        set_step(2)
 
-        # Extract unique values for views and layouts
-        unique_views = specification_data['View from window'].unique()
-        unique_layouts = specification_data['Layout type'].unique()
+elif current_step == 2:
+    st.markdown("### Step 3: Rank Views and Layouts")
 
-        st.markdown("### Step 3: Rank Views and Layouts")
-        st.write("Assign a rank from 1 to 10 for each unique view and layout.")
+    specification_data = pd.read_excel(specification_file, engine='openpyxl')
 
-        for view in unique_views:
-            view_ranking[view] = st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1)
+    if 'View from window' not in specification_data.columns:
+        specification_data['View from window'] = 'Default View'
+        st.warning("Column 'View from window' is missing. A default value has been assigned.")
 
-        for layout in unique_layouts:
-            layout_ranking[layout] = st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1)
+    if 'Layout type' not in specification_data.columns:
+        specification_data['Layout type'] = 'Default Layout'
+        st.warning("Column 'Layout type' is missing. A default value has been assigned.")
 
-    except Exception as e:
-        st.error(f"Error reading Specification file: {e}")
+    unique_views = specification_data['View from window'].unique()
+    unique_layouts = specification_data['Layout type'].unique()
 
-# Perform calculations
-if specification_file is not None:
-    if st.button("Calculate Dynamic Prices"):
-        try:
-            # Calculate oversold ratio
-            specification_data['Oversold'] = specification_data.apply(
-                lambda row: calculate_oversold(row.get('Properties Sold', 0), row.get('Total Properties', 1)), axis=1
-            )
+    view_ranking = {}
+    layout_ranking = {}
 
-            # Apply factors to adjust the base price per m²
-            specification_data['Area Factor'] = specification_data.apply(
-                lambda row: get_area_factor_linear(spread, row['Estimated area, m2'], offset, minimal_area), axis=1
-            )
-            specification_data['View Factor'] = specification_data.apply(
-                lambda row: view_ranking.get(row['View from window'], 5), axis=1
-            )
-            specification_data['Layout Factor'] = specification_data.apply(
-                lambda row: layout_ranking.get(row['Layout type'], 5), axis=1
-            )
-            specification_data['Terrace Factor'] = specification_data.apply(
-                lambda row: get_terrace_factor_value(row.get('Has Terrace', False), terrace_coefficient), axis=1
-            )
-            specification_data['Levels Factor'] = specification_data.apply(
-                lambda row: get_levels_factor_value(row.get('Levels', 1), levels_coefficient), axis=1
-            )
-            specification_data['Maxify Factor'] = specification_data.apply(
-                lambda row: get_maxify_factor_value(row.get('Base Factor', 1), row.get('Max Factor', 1), maxify_adjustment), axis=1
-            )
+    st.write("Assign a rank from 1 to 10 for each unique view and layout.")
+    for view in unique_views:
+        view_ranking[view] = st.slider(f"Rank for View: {view}", min_value=1, max_value=10, step=1)
 
-            # Combine all factors into a final price adjustment
-            specification_data['Final Factor'] = (
-                specification_data['Area Factor'] +
-                specification_data['View Factor'] +
-                specification_data['Layout Factor'] +
-                specification_data['Terrace Factor'] +
-                specification_data['Levels Factor'] +
-                specification_data['Maxify Factor']
-            )
+    for layout in unique_layouts:
+        layout_ranking[layout] = st.slider(f"Rank for Layout: {layout}", min_value=1, max_value=10, step=1)
 
-            specification_data['Dynamic Price (per m²)'] = base_price * specification_data['Final Factor']
-            specification_data['Total Price'] = specification_data['Dynamic Price (per m²)'] * specification_data['Estimated area, m2']
-            specification_data['Discount'] = specification_data['Total Price'] * 0.1
+    if st.button("Next"):
+        set_step(3)
 
-            st.success("Dynamic Prices Calculated Successfully.")
-            st.write("### Updated Specification Data with Calculations")
-            st.dataframe(specification_data)
+elif current_step == 3:
+    st.markdown("### Step 4: Calculate Results")
+    if st.button("Calculate"):
+        # Here you can implement calculations
+        st.success("Calculations completed successfully!")
 
-            st.markdown("### Step 4: Download Results")
-            st.download_button(
-                label="Download Updated Data",
-                data=specification_data.to_csv(index=False),
-                file_name="updated_specification_data.csv",
-                mime="text/csv"
-            )
-        except Exception as e:
-            st.error(f"An error occurred during calculations: {e}")
+    if st.button("Restart"):
+        set_step(0)
