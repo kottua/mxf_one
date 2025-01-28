@@ -25,6 +25,18 @@ def get_area_factor_power(filling, estimated_area, minimal_area):
 def get_area_factor_value(area_factor, spread):
     return area_factor + ((1 - area_factor) / spread)
 
+def get_view_factor_value(current_view_value, max_view_value, incline, shift):
+    return ((current_view_value / max_view_value) * incline) + shift
+
+def get_layout_factor_value(current_layout_value, max_layout_value, incline, shift):
+    return ((current_layout_value / max_layout_value) * incline) + shift
+
+def get_terrace_factor_value(property_has_terrace, coefficient):
+    return coefficient if property_has_terrace else 0
+
+def get_levels_factor_value(levels_qty, coefficient):
+    return levels_qty * coefficient
+
 # Streamlit application
 st.title("Dynamic Price Evaluation: Guided Workflow")
 
@@ -43,6 +55,10 @@ offset = st.number_input("Offset Value", min_value=0, step=1)
 minimal_area = st.number_input("Minimal Area", min_value=0.1, step=0.1)
 log_base = st.number_input("Logarithmic Base", min_value=1.0, step=0.1)
 step = st.number_input("Step Value for Score Calculation", min_value=0.1, step=0.1)
+incline = st.number_input("Incline for View Factor", min_value=0.1, step=0.1)
+shift = st.number_input("Shift for View Factor", min_value=0, step=1)
+terrace_coefficient = st.number_input("Coefficient for Terrace Factor", min_value=0.0, step=0.1)
+levels_coefficient = st.number_input("Coefficient for Levels Factor", min_value=0.0, step=0.1)
 
 # Validate uploaded files
 if income_plan_file is not None:
@@ -69,6 +85,18 @@ if specification_file is not None:
         try:
             specification_data['Area Factor'] = specification_data.apply(
                 lambda row: get_area_factor_linear(spread, row['Estimated area, m2'], offset, minimal_area), axis=1
+            )
+            specification_data['View Factor'] = specification_data.apply(
+                lambda row: get_view_factor_value(row.get('View', 0), 10, incline, shift), axis=1
+            )
+            specification_data['Layout Factor'] = specification_data.apply(
+                lambda row: get_layout_factor_value(row.get('Layout', 0), 10, incline, shift), axis=1
+            )
+            specification_data['Terrace Factor'] = specification_data.apply(
+                lambda row: get_terrace_factor_value(row.get('Has Terrace', False), terrace_coefficient), axis=1
+            )
+            specification_data['Levels Factor'] = specification_data.apply(
+                lambda row: get_levels_factor_value(row.get('Levels', 1), levels_coefficient), axis=1
             )
             specification_data['Score'] = specification_data.apply(
                 lambda row: get_score(base_price, row.get('Oversold', 0), step), axis=1
