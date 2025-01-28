@@ -13,10 +13,10 @@ def get_floor_factor_logarithmic(current_floor, max_floor, offset, log_base):
 def get_score(base, oversold, step):
     return base + (base * ((oversold + 0.01) ** (1 / step)))
 
-def calculate_oversold(properties_sold, total_properties):
-    if total_properties == 0:
+def calculate_oversold(sold_area, total_area):
+    if total_area == 0:
         return 0
-    return properties_sold / total_properties
+    return sold_area / total_area
 
 # Streamlit application
 st.set_page_config(layout="centered")
@@ -36,33 +36,33 @@ if income_plan_file and specification_file:
     income_plan_data = pd.read_excel(income_plan_file, engine='openpyxl')
 
     # Calculate statistics
-    total_properties = len(specification_data)
-    properties_sold = specification_data['Properties Sold'].sum() if 'Properties Sold' in specification_data.columns else 0
-    oversold_rate = calculate_oversold(properties_sold, total_properties)
+    total_area = specification_data['Estimated area, m2'].sum() if 'Estimated area, m2' in specification_data.columns else 0
+    sold_area = specification_data.loc[specification_data['Status'] == 'Sold', 'Estimated area, m2'].sum() if 'Status' in specification_data.columns else 0
+    oversold_rate = calculate_oversold(sold_area, total_area)
 
     planned_price_start = (
-        income_plan_data['Planned Price Start'].iloc[0]
-        if 'Planned Price Start' in income_plan_data.columns and not income_plan_data.empty
+        income_plan_data['Price'].iloc[0]
+        if 'Price' in income_plan_data.columns and not income_plan_data.empty
         else "Not Available"
     )
     planned_price_end = (
-        income_plan_data['Planned Price End'].iloc[-1]
-        if 'Planned Price End' in income_plan_data.columns and not income_plan_data.empty
+        income_plan_data['Price'].iloc[-1]
+        if 'Price' in income_plan_data.columns and not income_plan_data.empty
         else "Not Available"
     )
     avg_planned_price = (
-        income_plan_data['Planned Price'].mean()
-        if 'Planned Price' in income_plan_data.columns and not income_plan_data.empty
+        income_plan_data.loc[income_plan_data['Cumulative Sales (%)'] >= oversold_rate * 100, 'Price'].mean()
+        if 'Cumulative Sales (%)' in income_plan_data.columns and 'Price' in income_plan_data.columns
         else "Not Available"
     )
 
     # Display statistics
-    st.write(f"**Total Properties:** {total_properties}")
-    st.write(f"**Properties Sold:** {properties_sold}")
+    st.write(f"**Total Area (m²):** {total_area}")
+    st.write(f"**Sold Area (m²):** {sold_area}")
     st.write(f"**Oversold Rate:** {oversold_rate:.2%}")
     st.write(f"**Planned Price Start:** {planned_price_start}")
     st.write(f"**Planned Price End:** {planned_price_end}")
-    st.write(f"**Average Planned Price:** {avg_planned_price}")
+    st.write(f"**Average Planned Price at Current Sales Level:** {avg_planned_price}")
 
     # Step 2: Define Parameters
     st.markdown("### Step 2: Define User Parameters")
@@ -98,7 +98,7 @@ if income_plan_file and specification_file:
     st.markdown("### Step 4: Calculate and Review")
     if st.button("Calculate"):
         specification_data['Oversold'] = specification_data.apply(
-            lambda row: calculate_oversold(row.get('Properties Sold', 0), total_properties), axis=1
+            lambda row: calculate_oversold(sold_area, total_area), axis=1
         )
 
         specification_data['Dynamic Price (per m²)'] = base_price
