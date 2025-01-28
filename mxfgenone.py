@@ -90,6 +90,15 @@ if specification_file is not None:
         st.write("### Specification Data Preview")
         st.dataframe(specification_data)
 
+        # Ensure necessary columns exist
+        if 'View' not in specification_data.columns:
+            specification_data['View'] = 'Default View'
+            st.warning("Column 'View' is missing. A default value has been assigned.")
+
+        if 'Layout' not in specification_data.columns:
+            specification_data['Layout'] = 'Default Layout'
+            st.warning("Column 'Layout' is missing. A default value has been assigned.")
+
         # Extract unique values for views and layouts
         unique_views = specification_data['View'].unique()
         unique_layouts = specification_data['Layout'].unique()
