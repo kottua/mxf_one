@@ -37,6 +37,9 @@ def get_terrace_factor_value(property_has_terrace, coefficient):
 def get_levels_factor_value(levels_qty, coefficient):
     return levels_qty * coefficient
 
+def get_maxify_factor_value(base_factor, max_factor, adjustment):
+    return base_factor + (max_factor * adjustment)
+
 # Streamlit application
 st.title("Dynamic Price Evaluation: Guided Workflow")
 
@@ -59,6 +62,7 @@ incline = st.number_input("Incline for View Factor", min_value=0.1, step=0.1)
 shift = st.number_input("Shift for View Factor", min_value=0, step=1)
 terrace_coefficient = st.number_input("Coefficient for Terrace Factor", min_value=0.0, step=0.1)
 levels_coefficient = st.number_input("Coefficient for Levels Factor", min_value=0.0, step=0.1)
+maxify_adjustment = st.number_input("Adjustment for Maxify Factor", min_value=0.0, step=0.1)
 
 # Validate uploaded files
 if income_plan_file is not None:
@@ -99,6 +103,9 @@ if specification_file is not None:
             specification_data['Levels Factor'] = specification_data.apply(
                 lambda row: get_levels_factor_value(row.get('Levels', 1), levels_coefficient), axis=1
             )
+            specification_data['Maxify Factor'] = specification_data.apply(
+                lambda row: get_maxify_factor_value(row.get('Base Factor', 1), row.get('Max Factor', 1), maxify_adjustment), axis=1
+            )
 
             # Combine all factors into a final price adjustment
             specification_data['Final Factor'] = (
@@ -106,7 +113,8 @@ if specification_file is not None:
                 specification_data['View Factor'] +
                 specification_data['Layout Factor'] +
                 specification_data['Terrace Factor'] +
-                specification_data['Levels Factor']
+                specification_data['Levels Factor'] +
+                specification_data['Maxify Factor']
             )
 
             specification_data['Dynamic Price (per m²)'] = base_price * specification_data['Final Factor']
@@ -115,7 +123,7 @@ if specification_file is not None:
 
             st.success("Dynamic Prices Calculated Successfully.")
             st.write("### Updated Specification Data with Calculations")
-            st.dataframe(specification_data[['Premises ID ', 'Dynamic Price (per m²)', 'Total Price', 'Discount']])
+            st.dataframe(specification_data)
 
             st.markdown("### Step 3: Download Results")
             st.download_button(
