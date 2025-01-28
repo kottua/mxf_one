@@ -18,6 +18,16 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
     if 'Estimated area, m2' not in data.columns:
         raise KeyError("The column 'Estimated area, m2' is missing in the specification file.")
 
+    # Ensure critical columns are numeric
+    try:
+        data['Estimated area, m2'] = pd.to_numeric(data['Estimated area, m2'], errors='coerce')
+        data[oversold_col] = pd.to_numeric(data[oversold_col], errors='coerce')
+    except Exception as e:
+        raise ValueError(f"Error converting columns to numeric: {e}")
+
+    # Drop rows with NaN values in critical columns
+    data = data.dropna(subset=['Estimated area, m2', oversold_col])
+
     data['Score'] = data.apply(lambda row: get_score(base_price, row[oversold_col], step), axis=1)
     data['Dynamic Price'] = data['Score'] * data['Estimated area, m2']
     return data
@@ -95,5 +105,7 @@ if income_plan_file is not None and specification_file is not None:
             )
         except KeyError as e:
             st.error(f"Error: {e}")
+        except ValueError as e:
+            st.error(f"Data conversion error: {e}")
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
