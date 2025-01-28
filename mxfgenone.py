@@ -28,11 +28,19 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
     # Drop rows with NaN values in critical columns
     data = data.dropna(subset=['Estimated area, m2', oversold_col])
 
+    # Debugging: Ensure key columns are populated
+    if data.empty:
+        raise ValueError("No valid rows available after dropping NaN values in critical columns.")
+
     data['Score'] = data.apply(lambda row: get_score(base_price, row[oversold_col], step), axis=1)
     data['Dynamic Price'] = data['Score'] * data['Estimated area, m2']
 
     # Calculate Discount (example logic: 10% of Dynamic Price)
     data['Discount'] = data['Dynamic Price'] * 0.1
+
+    # Ensure key columns are populated
+    if data[['Premises ID ', 'Dynamic Price', 'Discount']].isnull().any().any():
+        raise ValueError("Some key columns (Premises ID, Dynamic Price, or Discount) have missing values.")
 
     # Keep only relevant columns
     result = data[['Premises ID ', 'Dynamic Price', 'Discount']]
@@ -112,6 +120,6 @@ if income_plan_file is not None and specification_file is not None:
         except KeyError as e:
             st.error(f"Error: {e}")
         except ValueError as e:
-            st.error(f"Data conversion error: {e}")
+            st.error(f"Data validation error: {e}")
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
