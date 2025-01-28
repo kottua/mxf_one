@@ -25,6 +25,12 @@ def calculate_dynamic_price(data, base_price, oversold_col, step):
     except Exception as e:
         raise ValueError(f"Error converting columns to numeric: {e}")
 
+    # Debugging: Check the unique values in critical columns
+    st.write("### Unique values in 'Estimated area, m2':")
+    st.write(data['Estimated area, m2'].unique())
+    st.write("### Unique values in the selected oversold column:")
+    st.write(data[oversold_col].unique())
+
     # Debugging: Check data before dropping NaN
     st.write("### Data before dropping NaN:")
     st.dataframe(data[['Premises ID ', 'Estimated area, m2', oversold_col]].head())
